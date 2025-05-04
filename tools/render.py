@@ -71,7 +71,7 @@ class Renderer:
         ]
 
         if 'landscape' in commands:
-            pandoc_cmd.extend(["-V", "geometry:landscape"])
+            pandoc_cmd.extend(["-V", "geometry:landscape,margin=0.5in"])
         else:
             pandoc_cmd.extend(["-V", "geometry:margin=.75in", "-V", "papersize:letter"])
 
