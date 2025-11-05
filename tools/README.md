@@ -1,12 +1,12 @@
 # Renderer: Markdown-to-PDF Tool for Handouts
 
-This tool is designed to help teachers efficiently convert Markdown-based handouts into PDF files using Pandoc. It looks for Markdown files with special comment-based commands and creates PDFs based on those instructions.
+This tool makes it easy for teachers to convert Markdown-based handouts into polished PDF files using Pandoc. It supports optional layout commands embedded directly in Markdown and only rebuilds PDFs when needed.
 
 ---
 
-## Folder Structure
+## 📁 Folder Structure
 
-The `render.py` script should live inside a `tools/` subdirectory, while your handouts are organized in sibling directories like this:
+The `render.py` script should live inside a `tools/` subdirectory, while your handouts are organized in sibling directories such as:
 
 ```
 /MyCourse
@@ -16,86 +16,133 @@ The `render.py` script should live inside a `tools/` subdirectory, while your ha
 ├── Week02
 │   ├── Notes.md
 │   └── pdf/
-├── tools
-│   ├── render.py
-│   └── grid-header.tex
+├── ExamReview
+│   ├── ReviewSheet.md
+│   └── pdf/
+└── tools
+    ├── render.py
+    └── grid-header.tex
 ```
 
-Each content folder (`Week01`, `Week02`, etc.) should contain:
+Each handout directory should contain:
+
 - One or more `.md` files
-- A `pdf/` subfolder for generated output
+- A pre-existing `pdf/` subfolder for generated output (**this tool will not create the folder automatically**)
 
 The `tools/` directory contains:
-- `render.py` — the script
-- `grid-header.tex` — optional background for handouts using the `grid` command
+
+- `render.py` — the rendering script
+- `grid-header.tex` — optional background template for the `grid` command
 
 ---
 
-## How It Works
+## 🔍 How It Works
 
-1. The script searches **one level up** from the `tools/` directory.
-2. It finds subdirectories that contain a `pdf/` folder.
-3. It scans for `.md` files in those directories.
-4. If a Markdown file contains the command `<!-- command: render -->`, it is converted to a PDF using Pandoc.
-5. The PDF is saved to the same directory’s `pdf/` subfolder.
+1. The script scans **recursively** starting from the directory above `tools/`.
+2. It finds all folders that contain a `pdf/` subfolder.
+3. It scans those folders for `.md` files.
+4. A file is rendered to PDF *only if it contains the command*:
 
----
+   ```markdown
+   <!-- command: render -->
+   ```
 
-## Supported Commands
+5. **Rebuild logic:**  
+   - If no PDF exists → build it  
+   - If the `.md` file is newer than the `.pdf` → rebuild it  
+   - Otherwise → skip (up-to-date)
 
-Place these in your `.md` file using HTML-style comments:
-
-Commands:
-
-| Command (Version 1)    | Command (Version 2)           | Description                                                     |
-|------------------------|-------------------------------|-----------------------------------------------------------------|
-| `[comment:] render`    | `<!-- command: render -->`    | Required for the file to be processed and turned into a PDF     |
-| `[comment:] grid`      | `<!-- command: grid -->`      | Adds a grid background (requires `grid-header.tex` in `tools/`) |
-| `[comment:] landscape` | `<!-- command: landscape -->` | Renders the PDF in landscape orientation instead of portrait    |
-
-You can combine commands in any file.
+6. PDFs are written into the existing `pdf/` subfolder.
 
 ---
 
-## `grid-header.tex` Location
+## 🧠 Supported Commands
 
-If you use the `grid` command, make sure the file `grid-header.tex` is located inside the `tools/` directory next to `render.py`. The script is configured to include it using an absolute path relative to its own location.
+Add commands as HTML comments in the `.md` file:
+
+| Command                           | Description |
+|----------------------------------|--------------|
+| `<!-- command: render -->`       | **Required**: file will be converted to a PDF |
+| `<!-- command: grid -->`         | Adds a grid background (requires `grid-header.tex`) |
+| `<!-- command: landscape -->`    | Renders PDF in landscape orientation |
+
+Commands may be combined.
 
 ---
 
-## Image Support
+## 🧱 `grid-header.tex`
 
-Your Markdown files can include images using relative paths (e.g., `![Diagram](images/plot.png)`). As long as the image paths are valid **from the location of the `.md` file**, they will render correctly. This is handled by Pandoc's `--resource-path`.
+If using the `grid` command, ensure that `grid-header.tex` is located next to `render.py`:
+
+```
+tools/grid-header.tex
+```
+
+The script uses an absolute path to include it reliably.
 
 ---
 
-## How to Run
+## 🖼️ Images
 
-From the **top-level directory of your course**, run the script like this:
+Include images in Markdown using relative paths, for example:
+
+```markdown
+![Diagram](images/plot.png)
+```
+
+Images are supported as long as the paths are valid relative to the `.md` file.  
+Pandoc’s `--resource-path` flag is used to ensure correct inclusion.
+
+---
+
+## ▶️ Running the Script
+
+From the **top-level course directory**, run:
 
 ```bash
 python tools/render.py
 ```
 
-The script will:
-- Search all subdirectories one level above `tools/`
-- Process any `.md` files with the appropriate command
-- Save PDFs into the correct `pdf/` subfolders
+### Optional Flags
+
+| Flag | Description |
+|------|--------------|
+| `--dry-run` | Show what would be built, but do not run Pandoc |
+| `--no-color` | Disable colored output (useful in CI or logs) |
+| `--home PATH` | Override the default directory to scan |
+
+**Examples:**
+
+Dry run only (no files built):
+
+```bash
+python tools/render.py --dry-run
+```
+
+Run without color:
+
+```bash
+python tools/render.py --no-color
+```
+
+Render a different course folder:
+
+```bash
+python tools/render.py --home ../Algebra2
+```
 
 ---
 
-## Requirements
+## ✅ Requirements
 
-- Python 3.6+
+- Python 3.8+
 - [Pandoc](https://pandoc.org/)
-- A LaTeX engine (e.g., `pdflatex`)
-- Optional: `grid-header.tex` in `tools/` for grid-style backgrounds
+- A LaTeX engine such as `pdflatex`
+- Optional: `grid-header.tex` for grid-style handouts
 
 ---
 
-## Example
-
-A simple Markdown file that will be rendered:
+## ✨ Example Markdown File
 
 ```markdown
 <!-- command: render -->
@@ -111,8 +158,9 @@ Here are some problems for today.
 
 ---
 
-## Notes
+## 📝 Notes
 
-- The script avoids changing the working directory to preserve relative image paths.
-- Output is verbose to show progress while running.
-- You can easily add new command types by editing the `process_file` method in `render.py`.
+- The script never auto-creates `pdf/` directories — create them yourself in any folder you wish to render.
+- Skipped vs. built files are clearly reported, with an end-of-run summary.
+- The script does **not** change the working directory, which preserves image paths.
+- You can extend the tool by adding new commands in the `process_file()` method.
