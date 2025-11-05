@@ -41,7 +41,7 @@ class Renderer:
     def process_file(self, directory: Path, filename: Path):
         #os.chdir(directory)
         lines=[]
-        with open(filename, "r") as f:
+        with open(filename, "r", encoding='utf8') as f:
             lines = f.readlines()
 
         # Extract [comment]: commands
@@ -73,7 +73,7 @@ class Renderer:
         if 'landscape' in commands:
             pandoc_cmd.extend(["-V", "geometry:landscape,margin=0.5in"])
         else:
-            pandoc_cmd.extend(["-V", "geometry:margin=.75in", "-V", "papersize:letter"])
+            pandoc_cmd.extend(["-V", "geometry:margin=.5in", "-V", "papersize:letter"])
 
         if 'grid' in commands:
             pandoc_cmd.extend(["-H", str(self.script_dir / "grid-header.tex")])
