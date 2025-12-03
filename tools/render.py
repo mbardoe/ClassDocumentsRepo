@@ -112,6 +112,7 @@ class Renderer:
 
         if 'grid' in commands:
             pandoc_cmd += ["-H", str(self.script_dir / "grid-header.tex")]
+        pandoc_cmd += ["-H", str(self.script_dir / "tikz-header.tex")]
 
         pandoc_cmd += ["-o", str(output_pdf)]
 
