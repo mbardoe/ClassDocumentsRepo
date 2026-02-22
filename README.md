@@ -35,9 +35,9 @@ This repository includes the following core directories:
 
 ## How It Works
 
-- All markdown files (`.md`) placed in folders that contain a `pdf/` subdirectory can be processed.
-- Files must include a `<!-- command: render -->` line to be turned into PDFs.
-- Optional commands allow for landscape formatting and grid overlays.
+- All markdown/typst files (`.md`, `.typ`) placed in folders that contain a `pdf/` subdirectory can be processed.
+- Files must include a `<!-- command: render -->` (markdown) or `// command: render` (typst) line to be turned into PDFs.
+- Optional commands allow for landscape formatting and grid overlays (only supported for markdown currently).
 
 ---
 
