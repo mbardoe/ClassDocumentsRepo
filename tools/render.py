@@ -39,7 +39,7 @@ class Colors:
 
 class Renderer:
     def __init__(self, home_directory: str = '', dry_run: bool = False, color: bool = True):
-        print("Version 4 Markdown Render (recursive, update-on-change, dry-run, colors)")
+        print("Version 5 Markdown + Typst Render (recursive, update-on-change, dry-run, colors)")
         self.home_directory = Path(home_directory).resolve()
         self.script_dir = Path(__file__).resolve().parent
         self.dry_run = dry_run
@@ -63,11 +63,39 @@ class Renderer:
         for directory in sorted(pdf_directories):
             print(f"\n📂 Processing directory: {directory}")
             md_files = sorted(directory.glob("*.md"))
-            if not md_files:
-                print("  (no .md files found)")
+            typ_files = sorted(directory.glob("*.typ"))
+
+            if not md_files and not typ_files:
+                print("  (no .md or .typ files found)")
                 continue
-            for file in md_files:
-                self.process_file(directory, file)
+
+            # Group files by stem and resolve conflicts
+            files_by_stem: dict[str, dict[str, Path]] = {}
+
+            for f in md_files:
+                files_by_stem.setdefault(f.stem, {})[".md"] = f
+            for f in typ_files:
+                files_by_stem.setdefault(f.stem, {})[".typ"] = f
+
+            for stem in sorted(files_by_stem.keys()):
+                exts = files_by_stem[stem]
+                chosen: Path | None = None
+
+                if ".typ" in exts and ".md" in exts:
+                    # Conflict: both exist. Prefer Typst, warn about Markdown.
+                    chosen = exts[".typ"]
+                    skipped = exts[".md"]
+                    print(
+                        f"  ⚠️  Both {stem}.md and {stem}.typ found; "
+                        f"using {self.colors.cyan(stem + '.typ')} and skipping {skipped.name}"
+                    )
+                elif ".typ" in exts:
+                    chosen = exts[".typ"]
+                elif ".md" in exts:
+                    chosen = exts[".md"]
+
+                if chosen is not None:
+                    self.process_file(directory, chosen)
 
         # Summary
         print("\n— Summary —")
@@ -83,59 +111,122 @@ class Renderer:
         output_dir = directory / "pdf"   # do NOT create; only process if it exists
         output_pdf = output_dir / f"{filename.stem}.pdf"
 
-        md_mtime = filename.stat().st_mtime
-        md_fmt = self._fmt(md_mtime)
+        src_mtime = filename.stat().st_mtime
+        src_fmt = self._fmt(src_mtime)
 
         build_reason = None
         if not output_pdf.exists():
             build_reason = "pdf missing"
         else:
             pdf_mtime = output_pdf.stat().st_mtime
-            if md_mtime > pdf_mtime:
-                build_reason = "markdown is newer"
+            if src_mtime > pdf_mtime:
+                build_reason = "source is newer"
             else:
                 self._skipped += 1
-                print(f"  {self.colors.green('SKIP')} {filename.name:30} "
-                      f"[md: {md_fmt} | pdf: {self._fmt(pdf_mtime)}]")
+                print(
+                    f"  {self.colors.green('SKIP')} {filename.name:30} "
+                    f"[src: {src_fmt} | pdf: {self._fmt(pdf_mtime)}]"
+                )
                 return
 
-        pandoc_cmd = [
-            "pandoc", "-s", str(filename),
-            "--pdf-engine=pdflatex",
-            f"--resource-path={directory}",
-        ]
+        ext = filename.suffix.lower()
 
-        if 'landscape' in commands:
-            pandoc_cmd += ["-V", "geometry:landscape,margin=0.5in"]
+        if ext == ".md":
+            # Original Pandoc + LaTeX pipeline
+            cmd = [
+                "pandoc", "-s", str(filename),
+                "--pdf-engine=pdflatex",
+                f"--resource-path={directory}",
+            ]
+
+            if 'landscape' in commands:
+                cmd += ["-V", "geometry:landscape,margin=0.5in"]
+            else:
+                cmd += ["-V", "geometry:margin=.5in", "-V", "papersize:letter"]
+
+            if 'grid' in commands:
+                cmd += ["-H", str(self.script_dir / "grid-header.tex")]
+            cmd += ["-H", str(self.script_dir / "tikz-header.tex")]
+
+            cmd += ["-o", str(output_pdf)]
+
+        elif ext == ".typ":
+            # Typst pipeline
+            # Basic:
+            #   typst compile file.typ pdf/file.pdf
+            cmd = [
+                "typst",
+                "compile",
+                str(filename),
+                str(output_pdf),
+            ]
+
+            # If you later want to wire grid/landscape into Typst via inputs,
+            # you can do something like:
+            #
+            # if 'grid' in commands:
+            #     cmd.extend(["--input", "grid=true"])
+            # if 'landscape' in commands:
+            #     cmd.extend(["--input", "landscape=true"])
+
         else:
-            pandoc_cmd += ["-V", "geometry:margin=.5in", "-V", "papersize:letter"]
-
-        if 'grid' in commands:
-            pandoc_cmd += ["-H", str(self.script_dir / "grid-header.tex")]
-        pandoc_cmd += ["-H", str(self.script_dir / "tikz-header.tex")]
-
-        pandoc_cmd += ["-o", str(output_pdf)]
+            # Unknown file type; ignore
+            return
 
         print(f"  {self.colors.yellow('BUILD')} {filename.name:30} ({build_reason}) -> {output_pdf.name}")
-        print(f"    {self.colors.dim(' '.join(map(str, pandoc_cmd)))}")
+        print(f"    {self.colors.dim(' '.join(map(str, cmd)))}")
 
         if not self.dry_run:
-            subprocess.run(pandoc_cmd, check=False)
+            subprocess.run(cmd, check=False)
         self._built += 1
 
     def _extract_commands(self, filename: Path):
+        """
+        Extracts command markers from the file.
+
+        Supported syntaxes:
+
+        - Old Markdown / HTML style:
+            <!-- command: render -->
+            <!-- command: grid -->
+
+        - Typst line comments:
+            // command: render
+            // command: grid
+
+        - Typst block comments (single-line):
+            /* command: render */
+        """
         commands = []
         with open(filename, "r", encoding="utf8") as f:
             for raw in f:
                 line = raw.strip()
-                if line.startswith("<!--") and "command:" in line:
-                    try:
+                if "command:" not in line:
+                    continue
+
+                try:
+                    if line.startswith("<!--"):
+                        # HTML-style: <!-- command: render -->
                         content = line.split("command:", 1)[1]
                         command = content.split("-->", 1)[0].strip()
-                        commands.append(command)
-                    except IndexError:
-                        print(f"  (malformed command comment in {filename.name})")
+                    elif line.startswith("//"):
+                        # Typst line comment: // command: render
+                        content = line.split("command:", 1)[1]
+                        command = content.strip()
+                    elif line.startswith("/*"):
+                        # Typst block comment (single-line): /* command: render */
+                        content = line.split("command:", 1)[1]
+                        command = content.split("*/", 1)[0].strip()
+                    else:
+                        # Unknown style; ignore
                         continue
+
+                    if command:
+                        commands.append(command)
+                except IndexError:
+                    print(f"  (malformed command comment in {filename.name})")
+                    continue
+
         if commands:
             print(f"  {filename.name:30} commands -> {commands}")
         return commands
@@ -146,10 +237,15 @@ class Renderer:
 
 
 def parse_args():
-    p = argparse.ArgumentParser(description="Render Markdown to PDF only when updated (recursive).")
-    p.add_argument("--home", default=HOME_DIRECTORY, help="Home directory to scan (default: ..)")
-    p.add_argument("--dry-run", action="store_true", help="Show what would be built; do not run pandoc.")
-    p.add_argument("--no-color", action="store_true", help="Disable colored output.")
+    p = argparse.ArgumentParser(
+        description="Render Markdown and Typst files to PDF only when updated (recursive)."
+    )
+    p.add_argument("--home", default=HOME_DIRECTORY,
+                   help="Home directory to scan (default: ..)")
+    p.add_argument("--dry-run", action="store_true",
+                   help="Show what would be built; do not run pandoc/typst.")
+    p.add_argument("--no-color", action="store_true",
+                   help="Disable colored output.")
     return p.parse_args()
 
 
