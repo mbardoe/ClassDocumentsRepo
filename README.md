@@ -1,6 +1,15 @@
 # 📚 Course Markdown Handout Template Repository
 
-This repository serves as a **template** for creating organized, Pandoc-powered course repositories that convert Markdown files into clean PDF handouts. It is designed for math, computer science, and other technical courses where instructors want full control over formatting and rendering using a lightweight, command-driven setup.
+This repository serves as a **template** for creating organized, Pandoc-powered course repositories that convert Markdown files into clean PDF handouts. 
+It also allows the user to use **Typst** to create their document. It is designed for math, computer science, and other technical courses where instructors want full 
+control over formatting and rendering using a lightweight, command-driven setup.
+
+## Advantages of Typst
+
+- **Modern Typesetting**: Typst offers a more modern and flexible typesetting system compared to LaTeX, with a simpler syntax and powerful layout capabilities.
+- **Built-in Features**: Typst has built-in support for features like tables, math, and graphics without needing additional packages.
+- **Faster Compilation**: Typst compiles documents faster than LaTeX, making it more efficient for iterative editing and rendering.
+- **Better Error Messages**: Typst provides clearer and more user-friendly error messages, which can help users troubleshoot issues
 
 ---
 
@@ -43,6 +52,14 @@ This repository includes the following core directories:
 You can combine these in a single file.
 
 ---
+## Supported Commands in `.typ` Files
+
+| Command                 | Description                                                               |
+|-------------------------|---------------------------------------------------------------------------|
+| `// command: render`    | Required for the file to be converted into a PDF                          |
+
+
+---
 
 ## Image Support
 
@@ -73,6 +90,7 @@ The script will:
 - Python 3.6+
 - [Pandoc](https://pandoc.org/)
 - A working LaTeX installation (`pdflatex` recommended)
+- A working Typst installation (`typst` command available in terminal)
 
 ---
 
@@ -107,6 +125,30 @@ To start a new course with this setup:
 ## Objectives
 - Understand domain and range
 - Work with multiple representations
+```
+
+---
+
+## Example Typst File
+
+```markdown
+// command: render 
+// Typst file example
+
+#set page(margin: 1in)
+#set text(font: "Times New Roman", size: 11pt)
+
+#let blank(len) = box(width: len, height: 0.5pt, stroke: 1pt + black)
+
+
+= Day 1: Introduction to Functions
+
+== Objectives
+
+#enum(
+[Understand domain and range],
+[Work with multiple representations],
+)
 ```
 
 ---
