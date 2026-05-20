@@ -1,7 +1,6 @@
-# 📚 Course Markdown Handout Template Repository
+# Course Markdown Handout Template Repository
 
-This repository serves as a **template** for creating organized, Pandoc-powered course repositories that convert Markdown files into clean PDF handouts. 
-It also allows the user to use **Typst** to create their document. It is designed for math, computer science, and other technical courses where instructors want full 
+This repository serves as a **template** for creating organized, Pandoc-powered course repositories that convert Typst and Markdown files into clean PDF handouts. It is designed for math, computer science, and other technical courses where instructors want full 
 control over formatting and rendering using a lightweight, command-driven setup.
 
 ## Advantages of Typst
@@ -19,16 +18,22 @@ This repository includes the following core directories:
 
 ```
 /Class_Notes
-├── pdf/            # Rendered PDFs from your markdown notes
-├── img/            # Images referenced in your markdown files
-├── Lecture_01.md   # Example markdown files with embedded commands
+├── pdf/               # Rendered PDFs from your markdown notes
+├── img/               # Images referenced in your markdown files
+├── Lecture_01.md      # Example markdown files with embedded commands
 
 /Class_Organization
-├── pdf/            # PDFs for syllabi, schedules, policies, etc.
+├── pdf/               # PDFs for syllabi, schedules, policies, etc.
+
+/pkg
+├── math-figures.typ   # Support for math figures using the CETZ library
+├── test-format.typ    # Support for multiple choice and short answer tests
+
+
 
 /tools
-├── render.py       # The script that processes markdown to PDF
-├── grid-header.tex # Optional LaTeX header to include grid background
+├── render.py          # The script that processes markdown to PDF
+├── grid-header.tex    # Optional LaTeX header to include grid background
 ```
 
 ---
