@@ -1,7 +1,7 @@
-# Course Markdown Handout Template Repository
+# Course Typst Handout Template Repository
 
 This repository serves as a **template** for creating organized, Pandoc-powered course repositories that convert Typst and Markdown files into clean PDF handouts. It is designed for math, computer science, and other technical courses where instructors want full 
-control over formatting and rendering using a lightweight, command-driven setup.
+control over formatting and rendering using a lightweight, command-driven setup. Initially, these tools were built to support building Markdown files, but more recently, support has shifted increasingly to Typst.
 
 ## Advantages of Typst
 
