@@ -4,6 +4,7 @@ import subprocess
 import argparse
 import sys
 import os
+import re
 
 HOME_DIRECTORY = ".."
 
@@ -86,7 +87,7 @@ class Renderer:
                     chosen = exts[".typ"]
                     skipped = exts[".md"]
                     print(
-                        f"  ⚠️  Both {stem}.md and {stem}.typ found; "
+                        f"Both {stem}.md and {stem}.typ found; "
                         f"using {self.colors.cyan(stem + '.typ')} and skipping {skipped.name}"
                     )
                 elif ".typ" in exts:
@@ -111,7 +112,15 @@ class Renderer:
         output_dir = directory / "pdf"   # do NOT create; only process if it exists
         output_pdf = output_dir / f"{filename.stem}.pdf"
 
-        src_mtime = filename.stat().st_mtime
+        ext = filename.suffix.lower()
+
+        if ext == ".typ":
+            dependencies = self._typst_dependencies(filename)
+            src_mtime, newest_source = self._newest_mtime(dependencies)
+        else:
+            dependencies = {filename}
+            src_mtime, newest_source = self._newest_mtime(dependencies)
+
         src_fmt = self._fmt(src_mtime)
 
         build_reason = None
@@ -120,16 +129,22 @@ class Renderer:
         else:
             pdf_mtime = output_pdf.stat().st_mtime
             if src_mtime > pdf_mtime:
-                build_reason = "source is newer"
+                if newest_source == filename.resolve():
+                    build_reason = "source is newer"
+                else:
+                    try:
+                        dep_name = newest_source.relative_to(self.home_directory)
+                    except ValueError:
+                        dep_name = newest_source
+                    build_reason = f"dependency is newer: {dep_name}"
             else:
                 self._skipped += 1
                 print(
                     f"  {self.colors.green('SKIP')} {filename.name:30} "
-                    f"[src: {src_fmt} | pdf: {self._fmt(pdf_mtime)}]"
+                    f"[src/deps: {src_fmt} | pdf: {self._fmt(pdf_mtime)}]"
                 )
                 return
 
-        ext = filename.suffix.lower()
 
         if ext == ".md":
             # Original Pandoc + LaTeX pipeline
@@ -152,11 +167,12 @@ class Renderer:
 
         elif ext == ".typ":
             # Typst pipeline
-            # Basic:
-            #   typst compile file.typ pdf/file.pdf
+            # Use --root so Typst can import/include shared files
+            # inside the project folder, such as ../tools/test-format.typ.
             cmd = [
                 "typst",
                 "compile",
+                "--root", str(self.home_directory),
                 str(filename),
                 str(output_pdf),
             ]
@@ -179,6 +195,87 @@ class Renderer:
         if not self.dry_run:
             subprocess.run(cmd, check=False)
         self._built += 1
+
+    def _typst_dependencies(self, filename: Path, seen: set[Path] | None = None) -> set[Path]:
+        """
+        Return all local Typst files that filename depends on through
+        #include "file.typ" or #import "file.typ".
+
+        This intentionally ignores package imports like:
+            #import "@preview/cetz:0.5.1" as cetz
+        """
+        if seen is None:
+            seen = set()
+
+        filename = filename.resolve()
+
+        if filename in seen:
+            return seen
+
+        seen.add(filename)
+
+        try:
+            text = filename.read_text(encoding="utf8")
+        except UnicodeDecodeError:
+            text = filename.read_text(encoding="utf8", errors="ignore")
+        except FileNotFoundError:
+            return seen
+
+        # Match:
+        #   #include "questions.typ"
+        #   #import "../tools/test_format.typ": mc, sa
+        #
+        # Ignore:
+        #   #import "@preview/cetz:0.5.1" as cetz
+        pattern = re.compile(r'#(?:include|import)\s+"([^"]+)"')
+
+        for match in pattern.finditer(text):
+            raw_path = match.group(1)
+
+            # Skip Typst packages and non-local imports
+            if raw_path.startswith("@"):
+                continue
+
+            dep = (filename.parent / raw_path).resolve()
+
+            # Keep dependencies inside the Typst root, if possible
+            try:
+                dep.relative_to(self.home_directory)
+            except ValueError:
+                print(
+                    f"  ⚠️  Dependency outside root ignored: "
+                    f"{self.colors.cyan(str(dep))}"
+                )
+                continue
+
+            if dep.exists() and dep.suffix == ".typ":
+                self._typst_dependencies(dep, seen)
+            else:
+                print(
+                    f"  ⚠️  Missing Typst dependency referenced by {filename.name}: "
+                    f"{self.colors.cyan(str(dep))}"
+                )
+
+        return seen
+
+    def _newest_mtime(self, files: set[Path]) -> tuple[float, Path]:
+        """
+        Return the newest modification time and the file that has it.
+        """
+        newest_file = None
+        newest_time = 0.0
+
+        for f in files:
+            try:
+                mtime = f.stat().st_mtime
+            except FileNotFoundError:
+                continue
+
+            if mtime > newest_time:
+                newest_time = mtime
+                newest_file = f
+
+        return newest_time, newest_file
 
     def _extract_commands(self, filename: Path):
         """
