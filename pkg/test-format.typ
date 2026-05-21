@@ -75,11 +75,21 @@
   #strong[Directions:] #body
 ]
 
-// Multiple Choice Question format
-#let mc(num, question, choices, columns: 1) = block(
+#let problem-counter = counter("problem")
+
+#let problem-number(num: none) = {
+  if num == none {
+    problem-counter.step()
+    problem-counter.display()
+  } else {
+    num
+  }
+}
+
+#let mc(question, choices, columns: 1, num: none) = block(
   breakable: false,
 )[
-  #strong[#num.] #question
+  #strong[#problem-number(num: num).] #question
 
   #if columns == 1 [
     #enum(
@@ -103,11 +113,10 @@
   #v(0.35in)
 ]
 
-// Short answer question
-#let sa(num, question, space: 1.5in) = block(
+#let sa(question, space: 1.5in, num: none) = block(
   breakable: false,
 )[
-  #strong[#num.] #question
+  #strong[#problem-number(num: num).] #question
 
   #v(0.15in)
   Answer: #answer-blank(width: 5.5in)
